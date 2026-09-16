@@ -12,7 +12,7 @@ decompiler).
 2. **No mocks, no fakes, no stubs.** Nothing is monkeypatched, intercepted, faked or
    injected. Every test drives the real binary (`target/release/rasc`) as a subprocess
    over real files on disk, or calls the library's public API with real bytes.
-3. **Real data only.** Corpora are real Android archives (APKs / `services.jar` from
+3. **Real data only.** Corpora are real Android archives (APKs / framework JARs from
    actual devices). Hand-written or synthesised DEX is not acceptable input for an
    acceptance scenario; if a shape needs pinning, capture it from a real archive and
    record the provenance + SHA-256.
@@ -41,9 +41,10 @@ python3 bench/compare_vs_reference.py                # throughput / result-set p
 
 `bench/acceptance.py` reads `tests/acceptance/scenarios.json`, verifies each corpus by
 SHA-256, then executes the scenarios. Corpora that are not present on this machine are
-reported as `blocked`, never silently skipped; a hash mismatch is refused. Drop the
-archives into `corpus/` to unblock them (`corpus/README.md` records the expected
-layout and hashes).
+reported as `blocked`, never silently skipped; a hash mismatch is refused. The corpora
+are not part of the repository: place the three pinned archives (WeChat, Android
+Settings, vivo `framework.jar`) under `/tmp/rasc_corpus/` — the `corpora` map in
+`tests/acceptance/scenarios.json` records the exact paths and hashes.
 
 Scenario statuses: `pass` (must hold), `known-failing` (declared defect, the acceptance
 gate for the next fix), `not-implemented` (criteria pre-registered before coding).

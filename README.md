@@ -19,8 +19,11 @@ no GUI.
 
 ## Performance and trade-offs
 
-Across 11 test scenarios on a 343 MiB APK, rasc achieves a geometric mean speedup of
-**8.0×** over ASC. Detailed measurements are included below.
+Across 11 scenarios on the 565 MiB WeChat `base.apk`, rasc achieves a geometric-mean
+speedup of **4.8×** over ASC, with equal result sets on every comparable scenario.
+Smaller archives widen the gap (`classes` is 31× on the 9.8 MiB Settings APK), while
+`getclass` stays around 1.2-2.7× because both sides parse the whole archive first.
+Detailed measurements are included below.
 
 That speed is not free. Optimization has led some of rasc's designs away from ASC;
 it is no longer a line-by-line translation. It favors throughput and is willing to spend
@@ -37,30 +40,68 @@ An implementation in Zig or C++ might go further.
 
 ### Test conditions
 
-- Apple M3 Pro (6 performance + 6 efficiency cores), 36 GiB RAM, macOS 26.5.1.
-- ASC: CPython 3.12.14, Androguard 4.1.4. rasc: Rust release build with FatLTO.
-- Input: WeChat `com.tencent.mm` base.apk (243 MiB, 16 root DEXes, 227,802 classes).
-  Both implementations use 8 workers.
-- End-to-end wall time: fresh process per sample, randomized execution order, median of
-  at least 3 runs. Output is discarded, but formatting and writing are included.
+- Apple M4 Pro, 48 GiB RAM, macOS 26.6.2.
+- ASC: CPython 3.12.12, Androguard 4.1.4. rasc: Rust release build with FatLTO.
+- Inputs — not shipped with the repo, pinned by SHA-256 in
+  `tests/acceptance/scenarios.json`, benchmarked from `/tmp/rasc_corpus/`:
+  WeChat `com.tencent.mm` base.apk (565 MiB, 16 root DEXes, 227,802 classes),
+  Android `com.android.settings` base.apk (9.8 MiB, 13 DEXes, 57,535 classes), and
+  vivo V2324A `framework.jar` (49.5 MiB, 6 DEXes, 37,815 classes).
+- Both implementations use 8 workers. End-to-end wall time: fresh process per sample,
+  randomized execution order, median of at least 3 runs on the WeChat APK, median of 3
+  on the smaller archives. Output is discarded, but formatting and writing are included.
 - Exit status and output are checked before timing; result sets are compared where applicable.
 
 ### Execution time
 
+WeChat `base.apk` (565 MiB):
+
 | Scenario | rasc | ASC | Speedup |
 |---|---:|---:|---:|
-| `findrefs string Authorization` | 43 ms | 214 ms | 5.0× |
-| `findrefs string okhttp` | 38 ms | 131 ms | 3.5× |
-| `findrefs type Gson` | 38 ms | 121 ms | 3.2× |
-| `findrefs method onCreate` | 54 ms | 336 ms | 6.2× |
-| `findrefs method onCreate --class androidx --fuzzy-class` | 46 ms | 303 ms | 6.6× |
-| `findrefs field INSTANCE` | 48 ms | 310 ms | 6.5× |
-| `getclass` early class (`classes.dex`) | 51 ms | 81 ms | 1.6× |
-| `getclass` late class (`classes16.dex`) | 31 ms | 50 ms | 1.6× |
-| `getclass` missing class | 39 ms | 89 ms | 2.3× |
-| `manifest` | 7 ms | 146 ms | 19.8× |
-| `classes` | 56 ms | 747 ms | 13.5× |
-| **Geometric mean** | | | **4.7×** |
+| `findrefs` string `Authorization` | 42 ms | 218 ms | 5.2× |
+| `findrefs` string `okhttp` | 45 ms | 157 ms | 3.5× |
+| `findrefs` type `Lcom/google/gson/Gson;` | 46 ms | 163 ms | 3.6× |
+| `findrefs` method `onCreate` | 57 ms | 447 ms | 7.8× |
+| `findrefs` method `onCreate` + `--class androidx --fuzzy-class` | 54 ms | 402 ms | 7.5× |
+| `findrefs` field `INSTANCE` | 52 ms | 363 ms | 7.0× |
+| `getclass` first class in the index | 48 ms | 60 ms | 1.2× |
+| `getclass` last class in the index | 47 ms | 62 ms | 1.3× |
+| `getclass` missing class | 49 ms | 87 ms | 1.8× |
+| `manifest` | 7 ms | 158 ms | 24× |
+| `classes` | 63 ms | 1,539 ms | 24× |
+| **Geometric mean** | | | **4.8×** |
+
+Result-set parity holds on every scenario above (0 rows missing / 0 extra; `getclass`
+output is byte-identical). `getclass` speedup by class position in the index:
+
+| Class position | rasc | ASC | Speedup |
+|---|---:|---:|---:|
+| first (`classes7.dex`) | 48 ms | 60 ms | 1.2× |
+| ~1/4 (`classes4.dex`) | 46 ms | 61 ms | 1.3× |
+| middle (`classes16.dex`) | 43 ms | 75 ms | 1.7× |
+| ~3/4 (`classes15.dex`) | 48 ms | 129 ms | 2.7× |
+| last (`classes13.dex`) | 47 ms | 62 ms | 1.3× |
+
+rasc is flat (~43-49 ms — a full-archive parse dominates); ASC grows with the distance
+into the archive, except where a late class sits in a DEX it parses cheaply.
+
+Settings `base.apk` (9.8 MiB) and `framework.jar` (49.5 MiB), median of 3:
+
+| Scenario | Settings rasc | Settings ASC | Speedup | framework rasc | framework ASC | Speedup |
+|---|---:|---:|---:|---:|---:|---:|
+| `findrefs` string | 14 ms | 364 ms | 26× | 194 ms | 321 ms | 1.7× |
+| `findrefs` type | 12 ms | 353 ms | 29× | 183 ms | 297 ms | 1.6× |
+| `findrefs` method | 15 ms | 429 ms | 29× | 285 ms | 634 ms | 2.2× |
+| `getclass` early class | 12 ms | 31 ms | 2.6× | 11 ms | 29 ms | 2.6× |
+| `getclass` late class | 11 ms | 27 ms | 2.5× | 11 ms | 28 ms | 2.5× |
+| `getclass` missing class | 12 ms | 29 ms | 2.4× | 12 ms | 29 ms | 2.4× |
+| `manifest` | 5 ms | 124 ms | 25× | 4 ms | 14 ms | 3.5× |
+| `classes` | 6 ms | 187 ms | 31× | 16 ms | 176 ms | 11× |
+
+(Settings string `wifi`, type `Landroid/net/wifi/WifiManager;`, method `onCreate`;
+framework string `android.app.ActivityManager`, type `Landroid/app/ActivityManagerService;`,
+method `onCreate`. framework.jar contains no AndroidManifest.xml; its manifest row uses
+the fast-fail path on both sides.)
 
 ASC has no CLI command for `manifest` or `classes`; the benchmark calls the underlying
 functions used by its GUI. Search semantics also differ: rasc uses literal queries and
@@ -68,28 +109,33 @@ instruction-boundary scanning, so arbitrary queries need not produce identical r
 
 ### Memory
 
-Peak RSS on the same APK with 8 workers:
+Peak RSS on the WeChat APK with 8 workers:
 
 | Scenario | rasc | ASC |
 |---|---:|---:|
-| `findrefs string Authorization` | 230 MiB | 142 MiB |
-| `findrefs field INSTANCE` | 203 MiB | 201 MiB |
-| `getclass` early class | 239 MiB | 184 MiB |
-| `manifest` | 7 MiB | 15 MiB |
-| `classes` | 228 MiB | 15 MiB |
+| `findrefs` string `Authorization` | 321 MiB | 139 MiB |
+| `findrefs` field `INSTANCE` | 309 MiB | 224 MiB |
+| `getclass` first class in the index | 318 MiB | 191 MiB |
+| `manifest` | 12 MiB | 15 MiB |
+| `classes` | 16 GiB | 15 MiB |
 
 rasc uses more memory for parallel reference searches and the class index, less for
-manifest decoding. Reducing workers trades speed for memory.
+manifest decoding. The `classes` row is the known outlier: with 8 worker threads the
+batch flush holds every rendered line in memory before writing (16 GiB peak, ~2.1 GiB
+single-threaded); bounding it is open tuning work. Reducing workers trades speed for memory.
 
 ### Reproduce
 
-Build rasc with `cargo build --release`. Set `RASC_BIN`, `APK`, `REF_ROOT`, and `REF_PY`
-to absolute paths; `REF_PY` must point to a Python environment with ASC's dependencies.
+Build rasc with `cargo build --release`. Place the three pinned archives under
+`/tmp/rasc_corpus/` (paths and SHA-256 in `tests/acceptance/scenarios.json`), set
+`RASC_BIN`, `APK`, `REF_ROOT`, and `REF_PY` to absolute paths; `REF_PY` must point to
+a Python environment with ASC's dependencies.
 
 ```sh
-APK=/path/to/app.apk RASC_BIN=/path/to/rasc/target/release/rasc \
-  REF_ROOT=/path/to/ASC REF_PY=/path/to/venv/bin/python \
-  THREADS=8 python3 bench/compare_vs_reference.py
+APK=/tmp/rasc_corpus/com.tencent.mm/base.apk RASC_BIN=$PWD/target/release/rasc \
+  REF_ROOT=/tmp/asc-ref REF_PY=python3.12 \
+  REF_PYTHONPATH=/tmp/agcheck_lxml:/tmp/agcheck THREADS=8 \
+  python3.12 bench/compare_vs_reference.py
 ```
 
 `bench/quality_vs_reference.py` is the per-class quality counterpart: the timing
@@ -103,21 +149,20 @@ their own (the reference truncates non-ASCII class names while decoding them, it
 a regression.
 
 ```sh
-APK=/path/to/app.apk RASC_BIN=/path/to/rasc/target/release/rasc \
-  REF_ROOT=/path/to/ASC REF_PY=/path/to/venv/bin/python \
-  REF_PYTHONPATH=/path/to/androguard python3 bench/quality_vs_reference.py \
-  --per-dex 20 --workers 4
+RASC_BIN=$PWD/target/release/rasc REF_ROOT=/tmp/asc-ref REF_PY=python3.12 \
+  REF_PYTHONPATH=/tmp/agcheck_lxml:/tmp/agcheck \
+  python3.12 bench/quality_vs_reference.py /tmp/rasc_corpus/framework.jar \
+  --per-dex 1200 --threads 8 --workers 8
 ```
 
-On a 3,200-class sample across the three archives pinned by the acceptance suite
-(WeChat `com.tencent.mm`, `com.android.settings`, and the vivo framework
-`services.jar`) the current build flags 499 classes (15.6%): 438 on method-set naming
-(R8 lambda names, `$`-prefixed synthetics), 109 with a missing string literal —
-mostly Kotlin coroutine state machines, which rasc renders as a commented bytecode
-listing instead of guessing — 41 with an empty control-flow body and 21 whose output
-is thin; none fall back to a stub, and neither side errors on any class. Per-corpus:
-WeChat 213/1,600 flagged (13.31%), Settings 261/1,300 (20.08%), services.jar 25/300
-(8.33%).
+On a 10,100-class sample across the three pinned archives the current build flags 829
+classes (8.21%): 680 on method-set naming (R8 lambda names, `$`-prefixed synthetics),
+211 with a missing string literal — mostly Kotlin coroutine state machines, which rasc
+renders as a commented bytecode listing instead of guessing — 81 with an empty
+control-flow body and 50 whose output is thin (a class can carry several signals, so
+the per-signal counts add up to more than 829); none fall back to a stub, and neither
+side errors on any class. Per-corpus: WeChat 213/1,600 flagged (13.31%), Settings
+261/1,300 (20.08%), framework.jar 355/7,200 (4.93%).
 
 </details>
 
@@ -135,7 +180,9 @@ python3 bench/acceptance.py --list   # what is declared, without running anythin
 
 `tests/acceptance/scenarios.json` declares the scenarios (corpus, class, command,
 expected behaviour, ground truth) before the code they judge is written, and pins each
-corpus by SHA-256. A scenario is `pass`, `known-failing` (a declared defect that is the
+corpus by SHA-256. The corpora themselves are not part of the repository; on this
+machine they live under `/tmp/rasc_corpus/` (WeChat, Android Settings, vivo
+`framework.jar`). A scenario is `pass`, `known-failing` (a declared defect that is the
 gate for the next fix), or `not-implemented` (criteria pre-registered before coding); a
 corpus that is not on this machine is reported as `blocked`, never silently skipped.
 

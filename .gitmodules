@@ -1,0 +1,4 @@
+[submodule "vendor/droidsaw-dex"]
+	path = vendor/droidsaw-dex
+	url = https://github.com/jygzyc/droidsaw-dex.git
+	branch = rasc

@@ -42,8 +42,7 @@ An implementation in Zig or C++ might go further.
 
 - Apple M4 Pro, 48 GiB RAM, macOS 26.6.2.
 - ASC: CPython 3.12.12, Androguard 4.1.4. rasc: Rust release build with FatLTO.
-- Inputs — not shipped with the repo, pinned by SHA-256 in
-  `bench/scenarios.py`, benchmarked from `/tmp/rasc_corpus/`:
+- Inputs — not shipped with the repo, benchmarked from `/tmp/rasc_corpus/`:
   WeChat `com.tencent.mm` base.apk (565 MiB, 16 root DEXes, 227,802 classes),
   Android `com.android.settings` base.apk (9.8 MiB, 13 DEXes, 57,535 classes), and
   vivo V2324A `framework.jar` (49.5 MiB, 6 DEXes, 37,815 classes).
@@ -126,8 +125,8 @@ single-threaded); bounding it is open tuning work. Reducing workers trades speed
 
 ### Reproduce
 
-Build rasc with `cargo build --release`. Place the three pinned archives under
-`/tmp/rasc_corpus/` (paths and SHA-256 in `bench/scenarios.py`), set
+Build rasc with `cargo build --release`. Place the three archives under
+`/tmp/rasc_corpus/`, set
 `RASC_BIN`, `APK`, `REF_ROOT`, and `REF_PY` to absolute paths; `REF_PY` must point to
 a Python environment with ASC's dependencies.
 
@@ -168,23 +167,14 @@ side errors on any class. Per-corpus: WeChat 213/1,600 flagged (13.31%), Setting
 
 ## Testing
 
-The repository has one acceptance entry point, described in `AGENTS.md`: tests assert
-behaviour end to end, drive the real binary over real archives, and take the DEX
-bytecode or the Python reference as ground truth — never a mock, a fake, or `rasc`'s own
-output:
+Tests assert behaviour end to end, drive the real binary over real archives, and
+take the DEX bytecode (`bench/disas.py`) or the Python reference implementation as
+ground truth — never a mock, a fake, or `rasc`'s own output (policy: `AGENTS.md`):
 
 ```sh
-python3 bench/acceptance.py          # every declared scenario, one verdict per line
-python3 bench/acceptance.py --list   # what is declared, without running anything
+cargo test --release                                # hermetic: production code has no Python/JVM/subprocess dependency
+bash bench/contracts.sh <apk> target/release/rasc   # CLI contracts on a real archive
 ```
-
-`bench/scenarios.py` declares the scenarios (corpus, class, command,
-expected behaviour, ground truth) before the code they judge is written, and pins each
-corpus by SHA-256. The corpora themselves are not part of the repository; on this
-machine they live under `/tmp/rasc_corpus/` (WeChat, Android Settings, vivo
-`framework.jar`). A scenario is `pass`, `known-failing` (a declared defect that is the
-gate for the next fix), or `not-implemented` (criteria pre-registered before coding); a
-corpus that is not on this machine is reported as `blocked`, never silently skipped.
 
 ## Build
 

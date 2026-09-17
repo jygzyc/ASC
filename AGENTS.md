@@ -18,10 +18,10 @@ decompiler).
    record the provenance + SHA-256.
 4. **End to end.** The chain under test is command line → archive → decompiler →
    stdout/file. No test stops halfway and asserts an internal stage.
-5. **Scenarios before code.** A change starts by declaring the acceptance scenario
-   (corpus, class, command, expected behaviour, independent ground truth) in
-   `bench/scenarios.py`. Only then is the implementation touched. A fix is
-   finished when its scenario flips to `pass` and no other scenario regresses.
+5. **Behaviour before code.** A change starts by stating the behaviour it changes
+   (corpus, class, command, expected output, independent ground truth), captured from
+   a real archive. Only then is the implementation touched. A fix is finished when that
+   behaviour is demonstrated on the real archive and no other behaviour regresses.
 6. **Ground truth must be independent of the thing under test.** Two are allowed:
    the DEX bytecode itself (disassembly, e.g. `bench/disas.py`), or the Python reference
    implementation in the ASC checkout. `rasc`'s own output is never the reference —
@@ -32,22 +32,14 @@ decompiler).
 
 ```sh
 cargo test --release                 # unit/contract tests inside the crates (fast, hermetic)
-python3 bench/acceptance.py          # acceptance scenarios over real corpora (this policy)
-python3 bench/acceptance.py --list   # what is declared, without running anything
 bash bench/contracts.sh <apk> target/release/rasc    # CLI contract checks, corpus-agnostic
 python3 bench/quality_vs_reference.py <apk|jar> --per-dex 20   # per-class quality vs reference
 python3 bench/compare_vs_reference.py                # throughput / result-set parity
 ```
 
-`bench/acceptance.py` reads `bench/scenarios.py`, verifies each corpus by
-SHA-256, then executes the scenarios. Corpora that are not present on this machine are
-reported as `blocked`, never silently skipped; a hash mismatch is refused. The corpora
-are not part of the repository: place the three pinned archives (WeChat, Android
-Settings, vivo `framework.jar`) under `/tmp/rasc_corpus/` — the `corpora` map in
-`bench/scenarios.py` records the exact paths and hashes.
-
-Scenario statuses: `pass` (must hold), `known-failing` (declared defect, the acceptance
-gate for the next fix), `not-implemented` (criteria pre-registered before coding).
+Benchmark and quality corpora are not part of the repository: place the three
+archives (WeChat, Android Settings, vivo `framework.jar`) under `/tmp/rasc_corpus/`.
+Every `bench/` harness takes the archive path directly.
 
 ## Repository layout
 
@@ -61,9 +53,9 @@ gate for the next fix), `not-implemented` (criteria pre-registered before coding
   the decompiler are developed in the fork `jygzyc/droidsaw-dex` (branch `rasc`, clone at
   `/tmp/dsd/work`) and synced here, never the other way round.
 - `bench/` — measurement and verification harnesses (`contracts.sh`,
-  `quality_vs_reference.py`, `compare_vs_reference.py`, `disas.py`, `acceptance.py`).
-- `bench/scenarios.py` + `tests/self_contained.rs` — acceptance scenarios and
-  the hermetic test that production code carries no Python/JVM/subprocess dependency.
+  `quality_vs_reference.py`, `compare_vs_reference.py`, `disas.py`).
+- `tests/self_contained.rs` — the hermetic test that production code carries no
+  Python/JVM/subprocess dependency.
 
 ## Do not align with these (reference-side bugs)
 

@@ -43,7 +43,7 @@ An implementation in Zig or C++ might go further.
 - Apple M4 Pro, 48 GiB RAM, macOS 26.6.2.
 - ASC: CPython 3.12.12, Androguard 4.1.4. rasc: Rust release build with FatLTO.
 - Inputs — not shipped with the repo, pinned by SHA-256 in
-  `tests/acceptance/scenarios.json`, benchmarked from `/tmp/rasc_corpus/`:
+  `bench/scenarios.py`, benchmarked from `/tmp/rasc_corpus/`:
   WeChat `com.tencent.mm` base.apk (565 MiB, 16 root DEXes, 227,802 classes),
   Android `com.android.settings` base.apk (9.8 MiB, 13 DEXes, 57,535 classes), and
   vivo V2324A `framework.jar` (49.5 MiB, 6 DEXes, 37,815 classes).
@@ -127,7 +127,7 @@ single-threaded); bounding it is open tuning work. Reducing workers trades speed
 ### Reproduce
 
 Build rasc with `cargo build --release`. Place the three pinned archives under
-`/tmp/rasc_corpus/` (paths and SHA-256 in `tests/acceptance/scenarios.json`), set
+`/tmp/rasc_corpus/` (paths and SHA-256 in `bench/scenarios.py`), set
 `RASC_BIN`, `APK`, `REF_ROOT`, and `REF_PY` to absolute paths; `REF_PY` must point to
 a Python environment with ASC's dependencies.
 
@@ -178,7 +178,7 @@ python3 bench/acceptance.py          # every declared scenario, one verdict per 
 python3 bench/acceptance.py --list   # what is declared, without running anything
 ```
 
-`tests/acceptance/scenarios.json` declares the scenarios (corpus, class, command,
+`bench/scenarios.py` declares the scenarios (corpus, class, command,
 expected behaviour, ground truth) before the code they judge is written, and pins each
 corpus by SHA-256. The corpora themselves are not part of the repository; on this
 machine they live under `/tmp/rasc_corpus/` (WeChat, Android Settings, vivo

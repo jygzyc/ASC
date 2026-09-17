@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Acceptance scenarios: behaviour, end to end, over real archives.
 
-Reads `tests/acceptance/scenarios.json` (see AGENTS.md for the policy it enforces),
+Reads `bench/scenarios.py` (see AGENTS.md for the policy it enforces),
 verifies every corpus by SHA-256, then runs each scenario against the real `rasc`
 binary. Nothing is mocked or stubbed: every check is a subprocess invocation over a
 real APK/JAR, and the ground truth is either the DEX bytecode or the Python
@@ -34,10 +34,11 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scenarios as spec_module
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-DEFAULT_SCENARIOS = os.path.join(REPO, "tests", "acceptance", "scenarios.json")
-
 RASC = os.environ.get("RASC_BIN", os.path.join(REPO, "target", "release", "rasc"))
 REF_ROOT = os.environ.get("REF_ROOT", "/tmp/asc-ref")
 REF_PY = os.environ.get("REF_PY", "python3.12")
@@ -184,6 +185,10 @@ def scenario_no_mocks(scenario, _corpus_path, _args):
         for path in sorted(glob.glob(os.path.join(REPO, pattern), recursive=True)):
             if "/vendor/" in path or "/target/" in path:
                 continue
+            # The declarations module names the needles as data, like this
+            # runner does; scanning it would flag the policy itself.
+            if os.path.basename(path) == "scenarios.py":
+                continue
             with open(path, "r", errors="replace") as handle:
                 for number, line in enumerate(handle, 1):
                     for identifier in scenario["forbidden_identifiers"]:
@@ -196,7 +201,6 @@ def scenario_no_mocks(scenario, _corpus_path, _args):
 def main():
     global RASC
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--scenarios", default=DEFAULT_SCENARIOS)
     parser.add_argument("--rasc", default=RASC)
     parser.add_argument("--only", default="", help="substring filter on the scenario id")
     parser.add_argument("--list", action="store_true")
@@ -212,9 +216,8 @@ def main():
     args = parser.parse_args()
 
     RASC = args.rasc
-    spec = json.load(open(args.scenarios))
-    corpora = spec["corpora"]
-    scenarios = [s for s in spec["scenarios"] if args.only in s["id"]]
+    corpora = spec_module.CORPORA
+    scenarios = [s for s in spec_module.SCENARIOS if args.only in s["id"]]
 
     if args.list:
         for scenario in scenarios:

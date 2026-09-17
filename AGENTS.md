@@ -20,7 +20,7 @@ decompiler).
    stdout/file. No test stops halfway and asserts an internal stage.
 5. **Scenarios before code.** A change starts by declaring the acceptance scenario
    (corpus, class, command, expected behaviour, independent ground truth) in
-   `tests/acceptance/scenarios.json`. Only then is the implementation touched. A fix is
+   `bench/scenarios.py`. Only then is the implementation touched. A fix is
    finished when its scenario flips to `pass` and no other scenario regresses.
 6. **Ground truth must be independent of the thing under test.** Two are allowed:
    the DEX bytecode itself (disassembly, e.g. `bench/disas.py`), or the Python reference
@@ -39,12 +39,12 @@ python3 bench/quality_vs_reference.py <apk|jar> --per-dex 20   # per-class quali
 python3 bench/compare_vs_reference.py                # throughput / result-set parity
 ```
 
-`bench/acceptance.py` reads `tests/acceptance/scenarios.json`, verifies each corpus by
+`bench/acceptance.py` reads `bench/scenarios.py`, verifies each corpus by
 SHA-256, then executes the scenarios. Corpora that are not present on this machine are
 reported as `blocked`, never silently skipped; a hash mismatch is refused. The corpora
 are not part of the repository: place the three pinned archives (WeChat, Android
 Settings, vivo `framework.jar`) under `/tmp/rasc_corpus/` — the `corpora` map in
-`tests/acceptance/scenarios.json` records the exact paths and hashes.
+`bench/scenarios.py` records the exact paths and hashes.
 
 Scenario statuses: `pass` (must hold), `known-failing` (declared defect, the acceptance
 gate for the next fix), `not-implemented` (criteria pre-registered before coding).
@@ -62,7 +62,7 @@ gate for the next fix), `not-implemented` (criteria pre-registered before coding
   `/tmp/dsd/work`) and synced here, never the other way round.
 - `bench/` — measurement and verification harnesses (`contracts.sh`,
   `quality_vs_reference.py`, `compare_vs_reference.py`, `disas.py`, `acceptance.py`).
-- `tests/acceptance/scenarios.json` + `tests/self_contained.rs` — acceptance scenarios and
+- `bench/scenarios.py` + `tests/self_contained.rs` — acceptance scenarios and
   the hermetic test that production code carries no Python/JVM/subprocess dependency.
 
 ## Do not align with these (reference-side bugs)

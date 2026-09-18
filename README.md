@@ -24,16 +24,17 @@ pip install .
 After installation, the `droidasc` CLI command is available globally:
 
 ```
-usage: droidasc [-h] {getclass,listclass,getmanifest,findrefs} ...
+usage: droidasc [-h] {getclass,listclass,getmanifest,findrefs,cfg} ...
 
 ASC tooling entry.
 
 positional arguments:
-  {getclass,listclass,getmanifest,findrefs}
+  {getclass,listclass,getmanifest,findrefs,cfg}
     getclass            Locate the target class in APK, extract one DEX in memory, then decompile.
     listclass           List classes defined across all DEX entries in APK.
     getmanifest         Decode AndroidManifest.xml from APK and print it as XML.
     findrefs            Find code references for string/type/method/field across all DEX entries in APK.
+    cfg                 Build the control-flow graph of one method from bytecode (dot/json).
 
 options:
   -h, --help            show this help message and exit
@@ -50,11 +51,16 @@ examples:
   droidasc findrefs app.apk method onCreate --class com.poc.Main
   droidasc findrefs app.apk method notify --class MainActivity --fuzzy-class -o method_refs.txt
   droidasc findrefs app.apk field apiKey -o field_refs.txt
+  droidasc cfg app.apk com.poc.Main onCreate -o onCreate.dot
+  droidasc cfg app.apk com.poc.Main 'onCreate(Landroid/os/Bundle;)V' --format json
 ```
 
 `listclass` prints Dalvik class descriptors in APK/DEX definition order, one per
 line. With `-o`, output is written to the selected file instead of stdout.
 `--prefix com.poc` filters by `Lcom/poc`; an already normalized prefix such as
 `Lcom/poc` is kept unchanged.
+
+- `cfg` — method control-flow graph built straight from Dalvik bytecode: basic blocks,
+  branch/switch edges, smali disassembly per block, emitted as Graphviz `dot` or `json`.
 
 You can also use `python main.py` as before — it delegates to the same entry point.

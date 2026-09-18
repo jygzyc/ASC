@@ -468,6 +468,15 @@ class DEX:
     def classes(self):
         return self._classes_proxy
 
+    def get_class(self, fullname):
+        """DexClass by descriptor (e.g. 'Lcom/a/B;'), or None when absent."""
+        if fullname not in self._classes_by_name:
+            if len(self._classes_by_name) < len(self._classes_proxy):
+                for i in range(len(self._classes_proxy)):
+                    c = self._classes_proxy[i]
+                    self._classes_by_name[c.fullname] = c
+        return self._classes_by_name.get(fullname)
+
     """
     # still not lazy
     @property

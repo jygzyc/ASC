@@ -62,6 +62,16 @@ class AscHandler:
         new_dex_bytes = manager.extract_and_rebuild(dalvik_class)
         return _decompile_dex_bytes(new_dex_bytes, dalvik_class)
 
+    def cfg(self, dex_buf : bytes, dalvik_class : str, method_query : str, out_format : str = "dot") -> str:
+        from droidasc.asc_core.utils.tinydex import DEX
+        from droidasc.asc_core.analysis.cfg import build_method_cfg, cfg_to_dot, cfg_to_json
+
+        dex = DEX.parse(memoryview(dex_buf))
+        cfg = build_method_cfg(dex, dalvik_class, method_query)
+        if out_format == "json":
+            return cfg_to_json(cfg)
+        return cfg_to_dot(cfg)
+
     def _format_method(self, dex, midx : int) -> str:
         method = dex.methods[midx]
         return f"{method.cls.fullname}->{method.name}"

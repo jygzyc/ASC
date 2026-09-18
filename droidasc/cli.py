@@ -126,6 +126,27 @@ def _handle_getmanifest(args):
         print(f"[DEBUG] Total Execution Time: {(t_end - t_start) * 1000000:.2f} us")
 
 
+def _handle_cfg(args):
+    from droidasc.asc_client.apk_handler import ApkHandler
+
+    dalvik_class = _format_class_name(args.dalvik_class)
+    apk_handler = ApkHandler(args.apk_path, debug=args.debug, max_workers=args.threads)
+    hit = apk_handler.get_class_dex(dalvik_class)
+    if hit is None:
+        raise ValueError(f"Class {dalvik_class} not found in APK.")
+
+    dex_name, dex_buf = hit
+    from droidasc.asc_client.asc_handler import AscHandler
+    text = AscHandler(args.debug).cfg(dex_buf, dalvik_class, args.method, out_format=args.format)
+
+    if args.debug:
+        t_end = time.perf_counter()
+        print(f"[DEBUG] Hit DEX: {dex_name}")
+        print(f"[DEBUG] Total Execution Time: {(t_end - t_start) * 1000000:.2f} us")
+
+    _emit(text, args.output)
+
+
 def _handle_findrefs(args):
     from droidasc.asc_client.apk_handler import ApkHandler
 
@@ -151,6 +172,15 @@ def _handle_findrefs(args):
     if args.debug:
         t_end = time.perf_counter()
         print(f"[DEBUG] Total Execution Time: {(t_end - t_start) * 1000000:.2f} us")
+
+
+def _emit(text, output):
+    if output:
+        with open(output, "w", encoding="utf-8", errors="replace", newline="\n") as fp:
+            fp.write(text)
+            if not text.endswith("\n"):
+                fp.write("\n")
+    print(text)
 
 
 def _run_gui(argv):
@@ -221,6 +251,8 @@ def main():
             _handle_getmanifest(args)
         elif args.command == "findrefs":
             _handle_findrefs(args)
+        elif args.command == "cfg":
+            _handle_cfg(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         if args.debug:
@@ -245,6 +277,7 @@ def _build_main_parser():
   droidasc findrefs app.apk method onCreate --class com.poc.Main
   droidasc findrefs app.apk method notify --class MainActivity --fuzzy-class -o method_refs.txt
   droidasc findrefs app.apk field apiKey -o field_refs.txt
+  droidasc cfg app.apk com.poc.Main onCreate --format dot -o onCreate.dot
 """,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -297,6 +330,24 @@ def _build_main_parser():
     getmanifest_parser.add_argument("--debug", action="store_true", help="Enable debug profiling output.")
     getmanifest_parser.add_argument("-o", "--output", help="Also write decoded manifest to this file.")
     getmanifest_parser.add_argument("apk_path", help="Path to the input APK file.")
+
+    cfg_parser = subparsers.add_parser(
+        "cfg",
+        help="Build the control-flow graph of one method from bytecode (dot/json).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  droidasc cfg app.apk com.poc.Main onCreate
+  droidasc cfg app.apk com.poc.Main 'onCreate(Landroid/os/Bundle;)V' --format json
+  droidasc cfg app.apk Lcom/poc/Main; run -o run.dot
+""",
+    )
+    cfg_parser.add_argument("--debug", action="store_true", help="Enable debug profiling output.")
+    cfg_parser.add_argument("--threads", "--thread", type=int, default=8, help="Worker thread count.")
+    cfg_parser.add_argument("--format", choices=["dot", "json"], default="dot", help="Output format.")
+    cfg_parser.add_argument("-o", "--output", help="Also write CFG output to this file.")
+    cfg_parser.add_argument("apk_path", help="Path to the input APK file.")
+    cfg_parser.add_argument("dalvik_class", help="Owner class (e.g., Lcom/poc/Main; or com.poc.Main).")
+    cfg_parser.add_argument("method", help="Method name, optionally with proto (e.g., 'onCreate(Landroid/os/Bundle;)V').")
 
     findrefs_parser = subparsers.add_parser(
         "findrefs",
